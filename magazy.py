@@ -1,11 +1,38 @@
 import streamlit as st
+import csv
+import os
 
 st.set_page_config(page_title="Magazyn", page_icon="📦")
 st.title("📦 System magazynowy")
 
-# Inicjalizacja magazynu
+PLIK_CSV = "magazyn.csv"
+
+# ======================
+# 💾 FUNKCJE CSV
+# ======================
+def zapisz_do_csv(magazyn):
+    with open(PLIK_CSV, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(["produkt", "ilosc"])
+        for produkt, ilosc in magazyn.items():
+            writer.writerow([produkt, ilosc])
+
+
+def wczytaj_z_csv():
+    magazyn = {}
+    if os.path.exists(PLIK_CSV):
+        with open(PLIK_CSV, mode="r", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                magazyn[row["produkt"]] = int(row["ilosc"])
+    return magazyn
+
+
+# ======================
+# 🔄 INICJALIZACJA
+# ======================
 if "magazyn" not in st.session_state:
-    st.session_state.magazyn = {}
+    st.session_state.magazyn = wczytaj_z_csv()
 
 # ======================
 # ➕ DODAWANIE PRODUKTU
@@ -18,21 +45,11 @@ ilosc = col2.number_input("Ilość", min_value=1, step=1)
 
 if st.button("Dodaj / zwiększ stan"):
     if nazwa:
-        if nazwa in st.session_state.magazyn:
-            st.session_state.magazyn[nazwa] += ilosc
-        else:
-            st.session_state.magazyn[nazwa] = ilosc
+        st.session_state.magazyn[nazwa] = st.session_state.magazyn.get(nazwa, 0) + ilosc
+        zapisz_do_csv(st.session_state.magazyn)
         st.success(f"Dodano {ilosc} szt. produktu **{nazwa}**")
     else:
         st.warning("Podaj nazwę produktu")
-
-st.divider()
-
-# ======================
-# 🔍 WYSZUKIWANIE
-# ======================
-st.header("🔍 Wyszukaj produkt")
-szukaj = st.text_input("Wpisz nazwę (lub jej część)").lower()
 
 st.divider()
 
@@ -43,23 +60,22 @@ st.header("📋 Stan magazynu")
 
 if st.session_state.magazyn:
     for produkt, ilosc in list(st.session_state.magazyn.items()):
-        if szukaj and szukaj not in produkt.lower():
-            continue
-
         col1, col2, col3, col4 = st.columns([4, 2, 2, 2])
 
         col1.write(f"**{produkt}**")
         col2.write(f"{ilosc} szt.")
 
         if col3.button("➖ 1", key=f"minus_{produkt}"):
-            if st.session_state.magazyn[produkt] > 1:
+            if ilosc > 1:
                 st.session_state.magazyn[produkt] -= 1
             else:
                 del st.session_state.magazyn[produkt]
+            zapisz_do_csv(st.session_state.magazyn)
             st.experimental_rerun()
 
         if col4.button("🗑 Usuń", key=f"usun_{produkt}"):
             del st.session_state.magazyn[produkt]
+            zapisz_do_csv(st.session_state.magazyn)
             st.experimental_rerun()
 else:
     st.info("Magazyn jest pusty")
@@ -67,8 +83,16 @@ else:
 st.divider()
 
 # ======================
+# 💾 RĘCZNY ZAPIS
+# ======================
+if st.button("💾 Zapisz do CSV"):
+    zapisz_do_csv(st.session_state.magazyn)
+    st.success("Dane zapisane do magazyn.csv")
+
+# ======================
 # 🧹 WYCZYŚĆ MAGAZYN
 # ======================
-if st.button("🧹 Wyczyść cały magazyn"):
+if st.button("🧹 Wyczyść magazyn"):
     st.session_state.magazyn.clear()
-    st.success("Magazyn został wyczyszczony")
+    zapisz_do_csv(st.session_state.magazyn)
+    st.warning("Magazyn wyczyszczony")
